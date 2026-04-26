@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>PyEditor VN</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,600;0,700;1,400&family=Be+Vietnam+Pro:wght@500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/skulpt/1.2.0/skulpt.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/skulpt/1.2.0/skulpt-stdlib.js"></script>
+<style>
+:root {
+  --bg: #0e1117;
+  --surface: #161b22;
+  --surface2: #1f2937;
+  --surface3: #111827;
+  --border: #21262d;
+  --border2: #30363d;
+  --accent: #58a6ff;
+  --accent-green: #3fb950;
+  --accent-yellow: #d29922;
+  --accent-red: #f85149;
+  --accent-purple: #bc8cff;
+  --accent-orange: #ffa657;
+  --accent-cyan: #79c0ff;
+  --text: #c9d1d9;
+  --text-dim: #8b949e;
+  --text-bright: #f0f6fc;
+  --gutter: #3d444d;
+  --selection: rgba(88,166,255,0.18);
+  --line-h: 22px;
+  --font-size: 14px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Be Vietnam Pro',sans-serif;overflow:hidden;}
+
+/* ── TITLEBAR ── */
+.titlebar{
+  height:40px;background:#0d1117;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 12px;gap:10px;
+  flex-shrink:0;user-select:none;
+}
+.traffic{display:flex;gap:6px;}
+.dot{width:12px;height:12px;border-radius:50%;}
+.dot.r{background:#ff5f57;} .dot.y{background:#febc2e;} .dot.g{background:#28c840;}
+.file-tab{
+  display:flex;align-items:center;gap:6px;
+  padding:4px 12px;border-radius:5px 5px 0 0;
+  background:var(--surface);border:1px solid var(--border);border-bottom:none;
+  font-size:12px;color:var(--text);margin-left:4px;
+}
+.file-tab .dot-unsaved{width:7px;height:7px;border-radius:50%;background:var(--accent-orange);}
+.titlebar-right{margin-left:auto;display:flex;gap:6px;}
+.btn-icon{
+  padding:5px 10px;border-radius:6px;border:1px solid var(--border2);
+  background:transparent;color:var(--text-dim);font-family:'Be Vietnam Pro',sans-serif;
+  font-size:11px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;
+  transition:all .15s;
+}
+.btn-icon:hover{border-color:var(--accent);color:var(--accent);}
+.btn-run-main{
+  padding:5px 14px;border-radius:6px;border:none;
+  background:var(--accent-green);color:#0d1117;
+  font-family:'Be Vietnam Pro',sans-serif;font-size:12px;font-weight:700;
+  cursor:pointer;display:flex;align-items:center;gap:5px;transition:opacity .15s;
+}
+.btn-run-main:hover{opacity:.85;}
+
+/* ── LAYOUT ── */
+.app-body{display:flex;height:calc(100vh - 40px);}
+
+/* ── SIDEBAR ── */
+.sidebar{
+  width:44px;background:#0d1117;border-right:1px solid var(--border);
+  display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:2px;
+  flex-shrink:0;
+}
+.sb-btn{
+  width:36px;height:36px;border-radius:8px;border:none;background:transparent;
+  color:var(--text-dim);font-size:16px;cursor:pointer;display:flex;align-items:center;
+  justify-content:center;transition:all .15s;position:relative;
+}
+.sb-btn:hover,.sb-btn.active{background:var(--surface2);color:var(--text-bright);}
+.sb-btn.active::before{
+  content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);
+  width:2px;height:20px;background:var(--accent);border-radius:0 2px 2px 0;
+}
+
+/* ── PANEL EXPLORER ── */
+.panel{
+  width:0;overflow:hidden;background:var(--surface3);
+  border-right:1px solid var(--border);transition:width .2s;flex-shrink:0;
+}
+.panel.open{width:200px;}
+.panel-title{
+  padding:8px 12px;font-size:11px;font-weight:700;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--text-dim);
+}
+.panel-item{
+  padding:6px 12px;font-size:12px;color:var(--text);cursor:pointer;
+  display:flex;align-items:center;gap:6px;transition:background .1s;
+}
+.panel-item:hover{background:var(--surface2);}
+.panel-item.active{background:rgba(88,166,255,.1);color:var(--accent);}
+
+/* ── EDITOR AREA ── */
+.editor-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+
+/* ── EDITOR WRAPPER ── */
+.editor-wrap{
+  flex:1;display:flex;overflow:hidden;position:relative;
+  background:var(--bg);
+}
+.line-numbers{
+  padding:8px 0;background:var(--bg);border-right:1px solid var(--border);
+  text-align:right;font-family:'JetBrains Mono',monospace;font-size:var(--font-size);
+  line-height:var(--line-h);color:var(--gutter);user-select:none;
+  min-width:48px;padding-right:12px;padding-left:8px;overflow:hidden;flex-shrink:0;
+}
+.editor-scroll{flex:1;overflow:auto;position:relative;}
+.editor-scroll::-webkit-scrollbar{width:8px;height:8px;}
+.editor-scroll::-webkit-scrollbar-track{background:var(--bg);}
+.editor-scroll::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
+
+/* The highlight layer + textarea stack */
+.editor-inner{position:relative;min-height:100%;}
+#highlight-layer{
+  position:absolute;top:0;left:0;right:0;
+  padding:8px 12px;
+  font-family:'JetBrains Mono',monospace;font-size:var(--font-size);line-height:var(--line-h);
+  white-space:pre;pointer-events:none;z-index:1;
+  color:transparent;
+  word-break:break-all;
+}
+#code-input{
+  position:absolute;top:0;left:0;right:0;bottom:0;width:100%;height:100%;
+  padding:8px 12px;
+  font-family:'JetBrains Mono',monospace;font-size:var(--font-size);line-height:var(--line-h);
+  background:transparent;color:var(--text);
+  border:none;outline:none;resize:none;
+  caret-color:var(--accent);
+  z-index:2;
+  white-space:pre;overflow:hidden;
+  -webkit-text-fill-color:transparent;
+}
+#code-input::selection{background:var(--selection);}
+
+/* syntax colors */
+.py-kw{color:#ff7b72;}
+.py-fn{color:#d2a8ff;}
+.py-bi{color:#79c0ff;}
+.py-st{color:#a5d6ff;}
+.py-st2{color:#a5d6ff;}
+.py-nm{color:#f0883e;}
+.py-cm{color:#8b949e;font-style:italic;}
+.py-op{color:#ff7b72;}
+.py-dc{color:#3fb950;}
+.py-bool{color:#ff7b72;}
+.py-self{color:#ffa657;}
+
+/* ── AUTOCOMPLETE ── */
+#autocomplete{
+  position:fixed;z-index:1000;
+  background:#1c2128;border:1px solid var(--border2);
+  border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.5);
+  max-height:200px;overflow-y:auto;min-width:180px;
+  display:none;
+}
+#autocomplete::-webkit-scrollbar{width:4px;}
+#autocomplete::-webkit-scrollbar-thumb{background:var(--border2);}
+.ac-item{
+  padding:6px 12px;font-family:'JetBrains Mono',monospace;font-size:13px;
+  cursor:pointer;display:flex;align-items:center;gap:8px;color:var(--text);
+  transition:background .1s;
+}
+.ac-item:hover,.ac-item.selected{background:rgba(88,166,255,.15);color:var(--accent);}
+.ac-kind{
+  font-size:10px;padding:1px 5px;border-radius:3px;font-family:'Be Vietnam Pro',sans-serif;
+  font-weight:700;flex-shrink:0;
+}
+.ac-kind.kw{background:#3d1f1f;color:#ff7b72;}
+.ac-kind.fn{background:#2d1f3d;color:#d2a8ff;}
+.ac-kind.bi{background:#1f2d3d;color:#79c0ff;}
+.ac-desc{font-size:11px;color:var(--text-dim);margin-left:auto;font-family:'Be Vietnam Pro',sans-serif;}
+
+/* ── STATUS BAR ── */
+.statusbar{
+  height:24px;background:#0d1117;border-top:1px solid var(--border);
+  display:flex;align-items:center;padding:0 12px;gap:16px;flex-shrink:0;
+}
+.status-item{font-size:11px;color:var(--text-dim);display:flex;align-items:center;gap:4px;}
+.status-item.green{color:var(--accent-green);}
+.status-item.blue{color:var(--accent);}
+
+/* ── OUTPUT PANEL ── */
+.output-area{
+  height:0;background:var(--surface3);border-top:1px solid var(--border);
+  transition:height .2s;overflow:hidden;flex-shrink:0;display:flex;flex-direction:column;
+}
+.output-area.open{height:220px;}
+.output-topbar{
+  display:flex;align-items:center;padding:0 12px;height:32px;flex-shrink:0;
+  border-bottom:1px solid var(--border);gap:8px;background:var(--surface);
+}
+.output-tab{
+  font-size:12px;font-weight:600;color:var(--text-dim);padding:0 8px;
+  height:100%;display:flex;align-items:center;cursor:pointer;
+  border-bottom:2px solid transparent;transition:all .15s;
+}
+.output-tab.active{color:var(--accent-green);border-bottom-color:var(--accent-green);}
+.output-topbar-right{margin-left:auto;display:flex;gap:6px;}
+#output-content{
+  flex:1;overflow-y:auto;padding:10px 14px;
+  font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.7;
+  white-space:pre-wrap;word-break:break-all;
+}
+#output-content::-webkit-scrollbar{width:4px;}
+#output-content::-webkit-scrollbar-thumb{background:var(--border2);}
+.out-normal{color:#c9d1d9;}
+.out-err{color:#f85149;}
+.out-info{color:#8b949e;}
+.out-inp{color:#ffa657;}
+
+/* ── RESIZE HANDLE ── */
+.resize-handle{
+  height:4px;background:transparent;cursor:row-resize;flex-shrink:0;
+  transition:background .15s;
+}
+.resize-handle:hover{background:var(--accent);}
+
+/* ── INPUT MODAL ── */
+.modal-bg{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;
+  align-items:center;justify-content:center;
+}
+.modal-bg.show{display:flex;}
+.modal{
+  background:#1c2128;border:1px solid var(--border2);border-radius:10px;
+  padding:20px;width:90%;max-width:340px;
+}
+.modal label{display:block;font-size:13px;color:var(--text-dim);margin-bottom:8px;}
+.modal input{
+  width:100%;background:var(--bg);border:1px solid var(--border2);
+  border-radius:6px;padding:9px 12px;color:var(--text-bright);
+  font-family:'JetBrains Mono',monospace;font-size:14px;outline:none;
+}
+.modal input:focus{border-color:var(--accent);}
+.modal-btns{margin-top:12px;display:flex;gap:8px;}
+.modal-ok{
+  flex:1;padding:8px;border-radius:6px;border:none;
+  background:var(--accent-green);color:#0d1117;font-weight:700;
+  font-family:'Be Vietnam Pro',sans-serif;font-size:13px;cursor:pointer;
+}
+.modal-cancel{
+  padding:8px 14px;border-radius:6px;border:1px solid var(--border2);
+  background:transparent;color:var(--text-dim);font-family:'Be Vietnam Pro',sans-serif;
+  font-size:13px;cursor:pointer;
+}
+
+/* ── TOOLTIP ── */
+#tooltip{
+  position:fixed;z-index:500;background:#1c2128;border:1px solid var(--border2);
+  border-radius:6px;padding:6px 10px;font-size:12px;color:var(--text-dim);
+  pointer-events:none;display:none;max-width:280px;line-height:1.5;
+}
+</style>
+</head>
+<body>
+
+<!-- TITLEBAR -->
+<div class="titlebar">
+  <div class="traffic">
+    <div class="dot r"></div>
+    <div class="dot y"></div>
+    <div class="dot g"></div>
+  </div>
+  <div class="file-tab">
+    <span>🐍</span>
+    <span id="filename">main.py</span>
+    <div class="dot-unsaved" id="unsaved-dot" style="display:none"></div>
+  </div>
+  <div class="titlebar-right">
+    <button class="btn-icon" onclick="togglePanel()">📁</button>
+    <button class="btn-icon" onclick="formatCode()">✨ Format</button>
+    <button class="btn-icon" onclick="clearEditor()">🗑</button>
+    <button class="btn-run-main" onclick="runCode()">▶ Run</button>
+  </div>
+</div>
+
+<div class="app-body">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <button class="sb-btn active" title="Explorer" onclick="togglePanel()">📁</button>
+    <button class="sb-btn" title="Snippets" onclick="showSnippets()">⚡</button>
+    <button class="sb-btn" title="Cài đặt" onclick="toggleTheme()">🎨</button>
+  </div>
+
+  <!-- FILE PANEL -->
+  <div class="panel" id="file-panel">
+    <div class="panel-title">Explorer</div>
+    <div class="panel-item active">🐍 main.py</div>
+    <div style="padding:12px;border-top:1px solid var(--border);margin-top:8px;">
+      <div style="font-size:10px;color:var(--text-dim);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">Snippets nhanh</div>
+      <div class="panel-item" onclick="insertSnippet('hello')">👋 Hello World</div>
+      <div class="panel-item" onclick="insertSnippet('input')">📥 Input + Print</div>
+      <div class="panel-item" onclick="insertSnippet('forloop')">🔃 For Loop</div>
+      <div class="panel-item" onclick="insertSnippet('function')">⚙️ Function</div>
+      <div class="panel-item" onclick="insertSnippet('list')">📋 List</div>
+      <div class="panel-item" onclick="insertSnippet('calculator')">🔢 Calculator</div>
+      <div class="panel-item" onclick="insertSnippet('guess')">🎯 Đoán số</div>
+    </div>
+  </div>
+
+  <!-- EDITOR AREA -->
+  <div class="editor-area">
+    <div class="editor-wrap">
+      <div class="line-numbers" id="line-numbers">1</div>
+      <div class="editor-scroll" id="editor-scroll">
+        <div class="editor-inner" id="editor-inner">
+          <div id="highlight-layer"></div>
+          <textarea id="code-input" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
+            placeholder="# Viết code Python ở đây..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESIZE -->
+    <div class="resize-handle" id="resize-handle"></div>
+
+    <!-- OUTPUT -->
+    <div class="output-area" id="output-area">
+      <div class="output-topbar">
+        <div class="output-tab active">Terminal</div>
+        <div class="output-topbar-right">
+          <button class="btn-icon" style="font-size:10px;" onclick="clearOutput()">Clear</button>
+          <button class="btn-icon" style="font-size:14px;" onclick="toggleOutput()">×</button>
+        </div>
+      </div>
+      <div id="output-content"><span class="out-info">// Nhấn ▶ Run để chạy code...\n</span></div>
+    </div>
+
+    <!-- STATUSBAR -->
+    <div class="statusbar">
+      <div class="status-item blue">🐍 Python 3</div>
+      <div class="status-item" id="status-cursor">Ln 1, Col 1</div>
+      <div class="status-item" id="status-chars">0 ký tự</div>
+      <div class="status-item green" id="status-state">● Sẵn sàng</div>
+      <div class="status-item" style="margin-left:auto;">UTF-8</div>
+    </div>
+  </div>
+</div>
+
+<!-- AUTOCOMPLETE -->
+<div id="autocomplete"></div>
+
+<!-- INPUT MODAL -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <label id="modal-label">Nhập giá trị:</label>
+    <input type="text" id="modal-input" onkeydown="if(event.key==='Enter')modalOk()">
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="modalCancel()">Hủy</button>
+      <button class="modal-ok" onclick="modalOk()">OK ↵</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOOLTIP -->
+<div id="tooltip"></div>
+
+<script>
+// ══════════════════════
+// PYTHON KEYWORDS & COMPLETIONS
+// ══════════════════════
+const PY_KEYWORDS = [
+  'False','None','True','and','as','assert','async','await',
+  'break','class','continue','def','del','elif','else','except',
+  'finally','for','from','global','if','import','in','is',
+  'lambda','nonlocal','not','or','pass','raise','return',
+  'try','while','with','yield'
+];
+const PY_BUILTINS = [
+  'print','input','int','float','str','bool','list','dict','tuple','set',
+  'len','range','type','isinstance','enumerate','zip','map','filter',
+  'sorted','reversed','sum','min','max','abs','round','open','help',
+  'dir','vars','id','hash','hex','oct','bin','chr','ord','format',
+  'repr','eval','exec','compile','getattr','setattr','hasattr','delattr',
+  'callable','iter','next','all','any','pow','divmod','complex',
+  'staticmethod','classmethod','property','super'
+];
+const PY_SNIPPETS_AC = [
+  {label:'def ', kind:'kw', desc:'Hàm mới'},
+  {label:'class ', kind:'kw', desc:'Lớp mới'},
+  {label:'if ', kind:'kw', desc:'Điều kiện'},
+  {label:'elif ', kind:'kw', desc:'Điều kiện khác'},
+  {label:'else:', kind:'kw', desc:'Mặc định'},
+  {label:'for ', kind:'kw', desc:'Vòng lặp for'},
+  {label:'while ', kind:'kw', desc:'Vòng lặp while'},
+  {label:'try:', kind:'kw', desc:'Bắt lỗi'},
+  {label:'except ', kind:'kw', desc:'Xử lý lỗi'},
+  {label:'import ', kind:'kw', desc:'Import thư viện'},
+  {label:'return ', kind:'kw', desc:'Trả về'},
+  {label:'print()', kind:'fn', desc:'In ra màn hình'},
+  {label:'input()', kind:'fn', desc:'Nhận dữ liệu'},
+  {label:'range()', kind:'fn', desc:'Tạo dãy số'},
+  {label:'len()', kind:'fn', desc:'Độ dài'},
+  {label:'int()', kind:'fn', desc:'Chuyển sang số nguyên'},
+  {label:'float()', kind:'fn', desc:'Chuyển sang số thực'},
+  {label:'str()', kind:'fn', desc:'Chuyển sang chuỗi'},
+  {label:'list()', kind:'fn', desc:'Tạo list'},
+  {label:'dict()', kind:'fn', desc:'Tạo dict'},
+  {label:'type()', kind:'fn', desc:'Kiểm tra kiểu'},
+  {label:'enumerate()', kind:'fn', desc:'Lặp kèm index'},
+  {label:'zip()', kind:'fn', desc:'Gộp 2 list'},
+  {label:'sorted()', kind:'fn', desc:'Sắp xếp'},
+  {label:'sum()', kind:'fn', desc:'Tính tổng'},
+  {label:'max()', kind:'fn', desc:'Giá trị lớn nhất'},
+  {label:'min()', kind:'fn', desc:'Giá trị nhỏ nhất'},
+  {label:'abs()', kind:'fn', desc:'Giá trị tuyệt đối'},
+  {label:'round()', kind:'fn', desc:'Làm tròn'},
+  {label:'open()', kind:'fn', desc:'Mở file'},
+  {label:'append()', kind:'bi', desc:'Thêm vào list'},
+  {label:'remove()', kind:'bi', desc:'Xóa khỏi list'},
+  {label:'pop()', kind:'bi', desc:'Xóa & lấy cuối'},
+  {label:'split()', kind:'bi', desc:'Tách chuỗi'},
+  {label:'join()', kind:'bi', desc:'Nối chuỗi'},
+  {label:'strip()', kind:'bi', desc:'Xóa khoảng trắng'},
+  {label:'upper()', kind:'bi', desc:'In hoa'},
+  {label:'lower()', kind:'bi', desc:'In thường'},
+  {label:'replace()', kind:'bi', desc:'Thay thế'},
+  {label:'find()', kind:'bi', desc:'Tìm vị trí'},
+  {label:'format()', kind:'bi', desc:'Định dạng'},
+  {label:'items()', kind:'bi', desc:'Lặp dict'},
+  {label:'keys()', kind:'bi', desc:'Lấy keys'},
+  {label:'values()', kind:'bi', desc:'Lấy values'},
+];
+
+// ══════════════════════
+// SYNTAX HIGHLIGHT
+// ══════════════════════
+function highlight(code) {
+  // Escape HTML first
+  let s = code
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;');
+
+  // Process line by line
+  let lines = s.split('\n');
+  lines = lines.map(line => {
+    // Comments
+    line = line.replace(/(#.*)$/, '<span class="py-cm">$1</span>');
+    if (line.includes('py-cm')) return line;
+
+    // Strings (triple quotes first, then single/double)
+    line = line.replace(/("""[\s\S]*?"""|'''[\s\S]*?''')/g, '<span class="py-st">$1</span>');
+    line = line.replace(/("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g, '<span class="py-st">$1</span>');
+
+    // Numbers
+    line = line.replace(/\b(\d+\.?\d*)\b/g, '<span class="py-nm">$1</span>');
+
+    // Keywords
+    const kwRe = new RegExp(`\\b(${PY_KEYWORDS.join('|')})\\b`, 'g');
+    line = line.replace(kwRe, '<span class="py-kw">$1</span>');
+
+    // self
+    line = line.replace(/\bself\b/g, '<span class="py-self">self</span>');
+
+    // Builtins followed by (
+    line = line.replace(new RegExp(`\\b(${PY_BUILTINS.join('|')})(?=\\()`, 'g'), '<span class="py-fn">$1</span>');
+
+    // Decorators
+    line = line.replace(/(@\w+)/g, '<span class="py-dc">$1</span>');
+
+    // Operators
+    line = line.replace(/([+\-*\/=&lt;&gt;!%|^~]+)/g, '<span class="py-op">$1</span>');
+
+    return line;
+  });
+  return lines.join('\n');
+}
+
+// ══════════════════════
+// EDITOR STATE
+// ══════════════════════
+const ta = document.getElementById('code-input');
+const hl = document.getElementById('highlight-layer');
+const lineNums = document.getElementById('line-numbers');
+const acMenu = document.getElementById('autocomplete');
+let acItems = [], acSelected = 0;
+let inputResolve = null;
+let outputOpen = false;
+
+const STARTER = `# 🐍 PyEditor VN — Viết code Python tại đây
+# Tính năng: syntax highlight, autocomplete, bracket pairing
+
+ten = input("Bạn tên gì? ")
+print(f"Xin chào, {ten}! 👋")
+print("Hãy bắt đầu học Python!")
+`;
+ta.value = STARTER;
+updateAll();
+
+// ══════════════════════
+// CORE UPDATE
+// ══════════════════════
+function updateAll() {
+  const code = ta.value;
+
+  // Highlight layer
+  hl.innerHTML = highlight(code) + '\n';
+
+  // Sync scroll
+  const scroll = document.getElementById('editor-scroll');
+  hl.style.paddingTop = '8px';
+
+  // Line numbers
+  const lines = code.split('\n').length;
+  lineNums.textContent = Array.from({length: lines}, (_,i)=>i+1).join('\n');
+
+  // Resize inner
+  const lineH = 22;
+  const h = Math.max(lines * lineH + 40, document.querySelector('.editor-wrap').clientHeight);
+  document.getElementById('editor-inner').style.height = h + 'px';
+
+  // Status
+  updateStatus();
+  document.getElementById('unsaved-dot').style.display = code !== STARTER ? 'block' : 'none';
+}
+
+function updateStatus() {
+  const code = ta.value;
+  const pos = ta.selectionStart;
+  const before = code.substring(0, pos);
+  const lines = before.split('\n');
+  const ln = lines.length;
+  const col = lines[lines.length-1].length + 1;
+  document.getElementById('status-cursor').textContent = `Ln ${ln}, Col ${col}`;
+  document.getElementById('status-chars').textContent = `${code.length} ký tự`;
+}
+
+// ══════════════════════
+// EVENTS
+// ══════════════════════
+ta.addEventListener('input', () => { updateAll(); showAC(); });
+ta.addEventListener('keydown', handleKeydown);
+ta.addEventListener('click', () => { updateStatus(); hideAC(); });
+ta.addEventListener('scroll', syncScroll);
+document.getElementById('editor-scroll').addEventListener('scroll', syncScroll);
+
+function syncScroll() {
+  const sc = document.getElementById('editor-scroll');
+  hl.style.transform = `translate(-${sc.scrollLeft}px, -${sc.scrollTop}px)`;
+  hl.style.top = sc.scrollTop + 'px';
+  hl.style.left = sc.scrollLeft + 'px';
+}
+
+// ══════════════════════
+// KEYDOWN HANDLER
+// ══════════════════════
+function handleKeydown(e) {
+  // Autocomplete navigation
+  if (acMenu.style.display === 'block') {
+    if (e.key === 'ArrowDown') { e.preventDefault(); acSelected = Math.min(acSelected+1, acItems.length-1); renderAC(); return; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); acSelected = Math.max(acSelected-1, 0); renderAC(); return; }
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      if (acItems.length > 0) { e.preventDefault(); applyAC(acItems[acSelected].label); return; }
+    }
+    if (e.key === 'Escape') { hideAC(); return; }
+  }
+
+  // Tab → indent
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const s = ta.selectionStart, end = ta.selectionEnd;
+    ta.value = ta.value.substring(0,s) + '    ' + ta.value.substring(end);
+    ta.selectionStart = ta.selectionEnd = s + 4;
+    updateAll();
+    return;
+  }
+
+  // Auto bracket/quote pairing
+  const pairs = {'(':')', '[':']', '{':'}', '"':'"', "'":"'"};
+  if (pairs[e.key]) {
+    const s = ta.selectionStart, end = ta.selectionEnd;
+    const selected = ta.value.substring(s, end);
+    if (selected) {
+      e.preventDefault();
+      ta.value = ta.value.substring(0,s) + e.key + selected + pairs[e.key] + ta.value.substring(end);
+      ta.selectionStart = s+1; ta.selectionEnd = end+1;
+    } else {
+      e.preventDefault();
+      ta.value = ta.value.substring(0,s) + e.key + pairs[e.key] + ta.value.substring(end);
+      ta.selectionStart = ta.selectionEnd = s+1;
+    }
+    updateAll();
+    return;
+  }
+
+  // Skip closing bracket if already there
+  const closers = [')', ']', '}'];
+  if (closers.includes(e.key)) {
+    const s = ta.selectionStart;
+    if (ta.value[s] === e.key) { e.preventDefault(); ta.selectionStart = ta.selectionEnd = s+1; return; }
+  }
+
+  // Backspace deletes pair
+  if (e.key === 'Backspace') {
+    const s = ta.selectionStart;
+    const prev = ta.value[s-1], next = ta.value[s];
+    const pairMap = {'(':')', '[':']', '{':'}', '"':'"', "'":"'"};
+    if (pairMap[prev] === next && ta.selectionStart === ta.selectionEnd) {
+      e.preventDefault();
+      ta.value = ta.value.substring(0,s-1) + ta.value.substring(s+1);
+      ta.selectionStart = ta.selectionEnd = s-1;
+      updateAll();
+      return;
+    }
+  }
+
+  // Enter → auto indent
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const s = ta.selectionStart;
+    const lineStart = ta.value.lastIndexOf('\n', s-1) + 1;
+    const currentLine = ta.value.substring(lineStart, s);
+    const indent = currentLine.match(/^(\s*)/)[1];
+    const extraIndent = currentLine.trimEnd().endsWith(':') ? '    ' : '';
+    const ins = '\n' + indent + extraIndent;
+    ta.value = ta.value.substring(0,s) + ins + ta.value.substring(ta.selectionEnd);
+    ta.selectionStart = ta.selectionEnd = s + ins.length;
+    updateAll();
+    return;
+  }
+
+  // Ctrl+/ → toggle comment
+  if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+    e.preventDefault();
+    toggleComment();
+    return;
+  }
+
+  // Ctrl+Z handled by browser, just update
+  setTimeout(updateAll, 10);
+}
+
+// ══════════════════════
+// AUTOCOMPLETE
+// ══════════════════════
+function getWordBefore() {
+  const s = ta.selectionStart;
+  const before = ta.value.substring(0, s);
+  const m = before.match(/[\w\.]+$/);
+  return m ? m[0] : '';
+}
+
+function showAC() {
+  const word = getWordBefore();
+  if (!word || word.length < 1) { hideAC(); return; }
+
+  const q = word.toLowerCase();
+  acItems = PY_SNIPPETS_AC.filter(i => i.label.toLowerCase().startsWith(q) && i.label.toLowerCase() !== q);
+
+  // Also add keywords/builtins not in snippets
+  PY_KEYWORDS.forEach(k => {
+    if (k.toLowerCase().startsWith(q) && !acItems.find(i=>i.label===k+' ') && k.toLowerCase()!==q)
+      acItems.push({label:k, kind:'kw', desc:'Keyword'});
+  });
+
+  if (!acItems.length) { hideAC(); return; }
+  acItems = acItems.slice(0, 10);
+  acSelected = 0;
+
+  // Position
+  const rect = ta.getBoundingClientRect();
+  const s = ta.selectionStart;
+  const before = ta.value.substring(0,s);
+  const lines = before.split('\n');
+  const ln = lines.length - 1;
+  const col = lines[ln].length;
+  const lineH = 22, fontSize = 8.4;
+  const top = rect.top + 8 + (ln+1)*lineH - ta.scrollTop;
+  const left = rect.left + 12 + col * fontSize;
+
+  acMenu.style.top = Math.min(top, window.innerHeight - 220) + 'px';
+  acMenu.style.left = Math.min(left, window.innerWidth - 200) + 'px';
+  acMenu.style.display = 'block';
+  renderAC();
+}
+
+function renderAC() {
+  acMenu.innerHTML = acItems.map((item, i) => `
+    <div class="ac-item ${i===acSelected?'selected':''}" onclick="applyAC('${item.label.replace(/'/,"\'")}')">
+      <span class="ac-kind ${item.kind}">${item.kind}</span>
+      <span>${escHtml(item.label)}</span>
+      <span class="ac-desc">${item.desc}</span>
+    </div>`).join('');
+}
+
+function applyAC(label) {
+  const word = getWordBefore();
+  const s = ta.selectionStart;
+  const start = s - word.length;
+  ta.value = ta.value.substring(0,start) + label + ta.value.substring(s);
+  // Position cursor inside brackets if label ends with ()
+  const cur = label.endsWith('()') ? start+label.length-1 : start+label.length;
+  ta.selectionStart = ta.selectionEnd = cur;
+  hideAC();
+  updateAll();
+  ta.focus();
+}
+
+function hideAC() { acMenu.style.display='none'; acItems=[]; }
+
+document.addEventListener('click', e => {
+  if (!acMenu.contains(e.target) && e.target !== ta) hideAC();
+});
+
+// ══════════════════════
+// TOGGLE COMMENT
+// ══════════════════════
+function toggleComment() {
+  const s = ta.selectionStart, end = ta.selectionEnd;
+  const lineStart = ta.value.lastIndexOf('\n',s-1)+1;
+  const lineEnd = ta.value.indexOf('\n',end);
+  const line = ta.value.substring(lineStart, lineEnd===-1?undefined:lineEnd);
+  let newLine, offset;
+  if (line.trimStart().startsWith('# ')) {
+    newLine = line.replace(/^(\s*)# /, '$1');
+    offset = -2;
+  } else if (line.trimStart().startsWith('#')) {
+    newLine = line.replace(/^(\s*)#/, '$1');
+    offset = -1;
+  } else {
+    const ind = line.match(/^(\s*)/)[1];
+    newLine = ind + '# ' + line.trimStart();
+    offset = 2;
+  }
+  ta.value = ta.value.substring(0,lineStart) + newLine + ta.value.substring(lineEnd===-1?ta.value.length:lineEnd);
+  ta.selectionStart = ta.selectionEnd = s + offset;
+  updateAll();
+}
+
+// ══════════════════════
+// SNIPPETS
+// ══════════════════════
+const SNIPPETS = {
+  hello: `print("Hello, World! 🌍")
+print("Xin chào Python!")`,
+  input: `ten = input("Bạn tên gì? ")
+tuoi = int(input("Bạn bao nhiêu tuổi? "))
+print(f"Xin chào {ten}, {tuoi} tuổi!")`,
+  forloop: `fruits = ["táo", "cam", "chuối", "xoài"]
+for i, fruit in enumerate(fruits):
+    print(f"{i+1}. {fruit}")`,
+  function: `def tinh_tong(a, b):
+    """Tính tổng hai số"""
+    return a + b
+
+ket_qua = tinh_tong(10, 25)
+print(f"Tổng: {ket_qua}")`,
+  list: `diem = [8, 9, 7, 10, 6, 9, 8]
+print(f"Số bài: {len(diem)}")
+print(f"Trung bình: {sum(diem)/len(diem):.1f}")
+print(f"Cao nhất: {max(diem)}")
+print(f"Thấp nhất: {min(diem)}")`,
+  calculator: `def tinh(a, op, b):
+    if op == "+": return a + b
+    elif op == "-": return a - b
+    elif op == "*": return a * b
+    elif op == "/":
+        if b == 0: return "Lỗi: chia cho 0"
+        return a / b
+    return "Phép tính không hợp lệ"
+
+a = float(input("Số a: "))
+op = input("Phép tính (+,-,*,/): ")
+b = float(input("Số b: "))
+print(f"Kết quả: {tinh(a, op, b)}")`,
+  guess: `import random
+bi_mat = random.randint(1, 100)
+luot = 0
+print("🎯 Đoán số bí mật (1-100)")
+while True:
+    doan = int(input("Đoán: "))
+    luot += 1
+    if doan == bi_mat:
+        print(f"🎉 Đúng rồi! Bạn đoán {luot} lần.")
+        break
+    elif doan < bi_mat:
+        print("📈 Lớn hơn!")
+    else:
+        print("📉 Nhỏ hơn!")`
+};
+
+function insertSnippet(key) {
+  ta.value = SNIPPETS[key] || '';
+  updateAll();
+  ta.focus();
+}
+
+function showSnippets() {
+  document.getElementById('file-panel').classList.toggle('open');
+}
+
+// ══════════════════════
+// FORMAT
+// ══════════════════════
+function formatCode() {
+  let lines = ta.value.split('\n');
+  // Basic: normalize spacing around operators, remove trailing whitespace
+  lines = lines.map(l => l.trimEnd());
+  ta.value = lines.join('\n');
+  updateAll();
+}
+
+// ══════════════════════
+// PANEL & THEME
+// ══════════════════════
+function togglePanel() {
+  document.getElementById('file-panel').classList.toggle('open');
+}
+
+let lightTheme = false;
+function toggleTheme() {
+  lightTheme = !lightTheme;
+  if (lightTheme) {
+    document.documentElement.style.setProperty('--bg','#ffffff');
+    document.documentElement.style.setProperty('--surface','#f6f8fa');
+    document.documentElement.style.setProperty('--text','#24292f');
+    document.documentElement.style.setProperty('--text-dim','#57606a');
+    document.documentElement.style.setProperty('--border','#d0d7de');
+    document.documentElement.style.setProperty('--surface3','#f6f8fa');
+    document.documentElement.style.setProperty('--gutter','#aab');
+  } else {
+    document.documentElement.style.setProperty('--bg','#0e1117');
+    document.documentElement.style.setProperty('--surface','#161b22');
+    document.documentElement.style.setProperty('--text','#c9d1d9');
+    document.documentElement.style.setProperty('--text-dim','#8b949e');
+    document.documentElement.style.setProperty('--border','#21262d');
+    document.documentElement.style.setProperty('--surface3','#111827');
+    document.documentElement.style.setProperty('--gutter','#3d444d');
+  }
+}
+
+// ══════════════════════
+// OUTPUT
+// ══════════════════════
+function toggleOutput() {
+  outputOpen = !outputOpen;
+  document.getElementById('output-area').classList.toggle('open', outputOpen);
+}
+
+function clearOutput() {
+  document.getElementById('output-content').innerHTML = '<span class="out-info">// Cleared\n</span>';
+}
+
+function appendOutput(html) {
+  const el = document.getElementById('output-content');
+  el.innerHTML += html;
+  el.scrollTop = el.scrollHeight;
+}
+
+// ══════════════════════
+// SKULPT RUNNER
+// ══════════════════════
+function runCode() {
+  const code = ta.value;
+  outputOpen = true;
+  document.getElementById('output-area').classList.add('open');
+  document.getElementById('output-content').innerHTML = '';
+  document.getElementById('status-state').textContent = '⏳ Đang chạy...';
+  document.getElementById('status-state').style.color = 'var(--accent-yellow)';
+
+  appendOutput(`<span class="out-info">$ python main.py\n</span>`);
+
+  function outf(text) {
+    appendOutput(`<span class="out-normal">${escHtml(text)}</span>`);
+  }
+  function builtinRead(x) {
+    if (Sk.builtinFiles===undefined||Sk.builtinFiles.files[x]===undefined) throw "File not found: "+x;
+    return Sk.builtinFiles.files[x];
+  }
+
+  Sk.configure({
+    output: outf,
+    read: builtinRead,
+    inputfun: (prompt) => new Promise(resolve => {
+      inputResolve = resolve;
+      document.getElementById('modal-label').textContent = prompt || 'Nhập giá trị:';
+      document.getElementById('modal-input').value = '';
+      document.getElementById('modal-bg').classList.add('show');
+      setTimeout(()=>document.getElementById('modal-input').focus(), 100);
+    }),
+    inputfunTakesPrompt: true,
+    __future__: Sk.python3,
+  });
+
+  Sk.misceval.asyncToPromise(()=>Sk.importMainWithBody('<stdin>',false,code,true))
+    .then(()=>{
+      appendOutput(`<span class="out-info">\n// ✓ Chạy xong</span>`);
+      document.getElementById('status-state').textContent = '✓ Thành công';
+      document.getElementById('status-state').style.color = 'var(--accent-green)';
+    })
+    .catch(e=>{
+      const msg = e.toString();
+      appendOutput(`<span class="out-err">\n${escHtml(msg)}</span>`);
+      document.getElementById('status-state').textContent = '✗ Có lỗi';
+      document.getElementById('status-state').style.color = 'var(--accent-red)';
+    });
+}
+
+function modalOk() {
+  const val = document.getElementById('modal-input').value;
+  document.getElementById('modal-bg').classList.remove('show');
+  appendOutput(`<span class="out-inp">${escHtml(val)}\n</span>`);
+  if (inputResolve) { inputResolve(val); inputResolve = null; }
+}
+
+function modalCancel() {
+  document.getElementById('modal-bg').classList.remove('show');
+  if (inputResolve) { inputResolve(''); inputResolve = null; }
+}
+
+function clearEditor() {
+  ta.value = '';
+  updateAll();
+  document.getElementById('unsaved-dot').style.display = 'none';
+}
+
+// ══════════════════════
+// RESIZE OUTPUT
+// ══════════════════════
+let resizing = false, resizeStartY = 0, resizeStartH = 0;
+document.getElementById('resize-handle').addEventListener('mousedown', e => {
+  resizing = true; resizeStartY = e.clientY;
+  resizeStartH = document.getElementById('output-area').offsetHeight;
+  outputOpen = true;
+  document.getElementById('output-area').classList.add('open');
+});
+document.addEventListener('mousemove', e => {
+  if (!resizing) return;
+  const delta = resizeStartY - e.clientY;
+  const newH = Math.max(80, Math.min(resizeStartH + delta, window.innerHeight * .7));
+  document.getElementById('output-area').style.height = newH + 'px';
+});
+document.addEventListener('mouseup', () => resizing = false);
+
+// Touch resize
+document.getElementById('resize-handle').addEventListener('touchstart', e => {
+  resizing = true; resizeStartY = e.touches[0].clientY;
+  resizeStartH = document.getElementById('output-area').offsetHeight;
+  outputOpen = true;
+  document.getElementById('output-area').classList.add('open');
+},{passive:true});
+document.addEventListener('touchmove', e => {
+  if (!resizing) return;
+  const delta = resizeStartY - e.touches[0].clientY;
+  const newH = Math.max(80, Math.min(resizeStartH + delta, window.innerHeight*.7));
+  document.getElementById('output-area').style.height = newH + 'px';
+},{passive:true});
+document.addEventListener('touchend', () => resizing = false);
+
+// ══════════════════════
+// UTIL
+// ══════════════════════
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Initial render
+updateAll();
+</script>
+</body>
+</html>
